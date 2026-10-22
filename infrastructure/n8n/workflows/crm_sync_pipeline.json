@@ -1,0 +1,93 @@
+{
+  "name": "AI Sales CRM - Twenty CRM Sync Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "crm-sync-trigger",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "name": "Webhook Trigger - Lead Approved",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ],
+      "id": "node-webhook-crm-sync"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "crm_record_id",
+              "value": "=tw_{{$json.body.lead_id.slice(0,8)}}"
+            },
+            {
+              "name": "lead_id",
+              "value": "={{$json.body.lead_id}}"
+            },
+            {
+              "name": "tenant_id",
+              "value": "={{$json.body.tenant_id}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Twenty CRM Contact Provisioner",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        500,
+        300
+      ],
+      "id": "node-twenty-crm-provisioner"
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "=http://backend:8000/api/v1/webhooks/n8n/crm-sync-complete",
+        "jsonParameters": true,
+        "headerParametersJson": "={\n  \"Content-Type\": \"application/json\",\n  \"X-Webhook-Secret\": \"n8n_sales_crm_secure_webhook_secret_2026\"\n}",
+        "bodyParametersJson": "={\n  \"lead_id\": \"{{$json.lead_id}}\",\n  \"tenant_id\": \"{{$json.tenant_id}}\",\n  \"crm_name\": \"Twenty CRM\",\n  \"crm_record_id\": \"{{$json.crm_record_id}}\",\n  \"sync_status\": \"SYNCED\"\n}"
+      },
+      "name": "Notify FastAPI Sync Complete",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        750,
+        300
+      ],
+      "id": "node-notify-crm-sync"
+    }
+  ],
+  "connections": {
+    "Webhook Trigger - Lead Approved": {
+      "main": [
+        [
+          {
+            "node": "Twenty CRM Contact Provisioner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Twenty CRM Contact Provisioner": {
+      "main": [
+        [
+          {
+            "node": "Notify FastAPI Sync Complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {}
+}

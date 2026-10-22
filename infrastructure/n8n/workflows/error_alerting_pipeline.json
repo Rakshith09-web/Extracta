@@ -1,0 +1,89 @@
+{
+  "name": "AI Sales CRM - Error & Incident Alerting Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "incident-alert-trigger",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "name": "Webhook Trigger - Pipeline Incident",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ],
+      "id": "node-webhook-incident"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "alert_title",
+              "value": "=[CRITICAL INCIDENT] AI Sales Pipeline Failure"
+            },
+            {
+              "name": "formatted_message",
+              "value": "=🚨 Alert Source: {{$json.body.source || 'Worker Node'}}\\n📝 Error: {{$json.body.message || 'Unknown Exception'}}\\n🏢 Tenant ID: {{$json.body.tenant_id || 'Global'}}\\n⏰ Timestamp: {{$now.toISO()}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Format Incident Notification",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        500,
+        300
+      ],
+      "id": "node-format-incident"
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "=http://backend:8000/api/v1/webhooks/n8n/alert",
+        "jsonParameters": true,
+        "headerParametersJson": "={\n  \"Content-Type\": \"application/json\",\n  \"X-Webhook-Secret\": \"n8n_sales_crm_secure_webhook_secret_2026\"\n}",
+        "bodyParametersJson": "={\n  \"tenant_id\": \"{{$json.tenant_id}}\",\n  \"level\": \"CRITICAL\",\n  \"source\": \"n8n_incident_dispatcher\",\n  \"message\": \"{{$json.formatted_message}}\",\n  \"context\": {\n    \"dispatched_at\": \"{{$now.toISO()}}\"\n  }\n}"
+      },
+      "name": "Log Audit Alert in CRM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        750,
+        300
+      ],
+      "id": "node-log-audit-alert"
+    }
+  ],
+  "connections": {
+    "Webhook Trigger - Pipeline Incident": {
+      "main": [
+        [
+          {
+            "node": "Format Incident Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Incident Notification": {
+      "main": [
+        [
+          {
+            "node": "Log Audit Alert in CRM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {}
+}

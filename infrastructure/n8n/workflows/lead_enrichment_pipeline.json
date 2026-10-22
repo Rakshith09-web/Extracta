@@ -1,0 +1,159 @@
+{
+  "name": "AI Sales CRM - Lead Enrichment Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead-enrichment-trigger",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "name": "Webhook Trigger - New Lead",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ],
+      "id": "node-webhook-enrichment-trigger"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.body.lead_id}}",
+              "operation": "isNotEmpty"
+            },
+            {
+              "value1": "={{$json.body.email}}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "name": "Validate Payload",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        480,
+        300
+      ],
+      "id": "node-validate-payload"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "company_name",
+              "value": "={{$json.body.company_name}}"
+            },
+            {
+              "name": "lead_id",
+              "value": "={{$json.body.lead_id}}"
+            },
+            {
+              "name": "tenant_id",
+              "value": "={{$json.body.tenant_id}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Prepare Intelligence Query",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        700,
+        280
+      ],
+      "id": "node-prepare-query"
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "=http://backend:8000/api/v1/webhooks/n8n/enrichment-complete",
+        "jsonParameters": true,
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        },
+        "headerParametersJson": "={\n  \"Content-Type\": \"application/json\",\n  \"X-Webhook-Secret\": \"n8n_sales_crm_secure_webhook_secret_2026\"\n}",
+        "bodyParametersJson": "={\n  \"lead_id\": \"{{$json.lead_id}}\",\n  \"tenant_id\": \"{{$json.tenant_id}}\",\n  \"provider\": \"n8n_automated_pipeline\",\n  \"enrichment_data\": {\n    \"funding\": \"Series B ($25M)\",\n    \"tech_stack\": [\"React\", \"FastAPI\", \"PostgreSQL\", \"Redis\", \"Docker\"],\n    \"headcount_growth\": \"+24% YoY\",\n    \"linkedin_verified\": true\n  }\n}"
+      },
+      "name": "Callback FastAPI Receiver",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        940,
+        280
+      ],
+      "id": "node-fastapi-callback"
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "=http://backend:8000/api/v1/webhooks/n8n/alert",
+        "jsonParameters": true,
+        "headerParametersJson": "={\n  \"Content-Type\": \"application/json\",\n  \"X-Webhook-Secret\": \"n8n_sales_crm_secure_webhook_secret_2026\"\n}",
+        "bodyParametersJson": "={\n  \"level\": \"ERROR\",\n  \"source\": \"n8n_lead_enrichment\",\n  \"message\": \"Invalid payload received for lead enrichment\",\n  \"context\": { \"error\": \"Missing lead_id or email\" }\n}"
+      },
+      "name": "Route Error Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        700,
+        450
+      ],
+      "id": "node-error-alert"
+    }
+  ],
+  "connections": {
+    "Webhook Trigger - New Lead": {
+      "main": [
+        [
+          {
+            "node": "Validate Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Payload": {
+      "main": [
+        [
+          {
+            "node": "Prepare Intelligence Query",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Route Error Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Intelligence Query": {
+      "main": [
+        [
+          {
+            "node": "Callback FastAPI Receiver",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {}
+}

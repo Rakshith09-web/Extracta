@@ -1,0 +1,184 @@
+{
+  "name": "AI Sales CRM - Scheduled Search Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1"
+            }
+          ]
+        }
+      },
+      "name": "Schedule Trigger (Weekly Monday 9AM)",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ],
+      "id": "node-schedule-cron-trigger"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "search_query",
+              "value": "VP of Sales in SaaS Companies Series A/B with 50-200 employees"
+            },
+            {
+              "name": "tenant_id",
+              "value": "={{$env.DEFAULT_TENANT_ID || '00000000-0000-0000-0000-000000000000'}}"
+            },
+            {
+              "name": "target_count",
+              "value": "25"
+            }
+          ]
+        }
+      },
+      "name": "Set Search Query Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        480,
+        300
+      ],
+      "id": "node-set-search-config"
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "http://backend:8000/api/v1/searches/start",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={\n  \"query\": \"{{$json.search_query}}\",\n  \"tenant_id\": \"{{$json.tenant_id}}\",\n  \"target_count\": {{$json.target_count}},\n  \"source\": \"n8n_scheduled_trigger\"\n}",
+        "headerParametersJson": "={\n  \"Content-Type\": \"application/json\",\n  \"X-Webhook-Secret\": \"n8n_sales_crm_secure_webhook_secret_2026\"\n}"
+      },
+      "name": "Trigger FastAPI Search Job",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        700,
+        300
+      ],
+      "id": "node-trigger-search-job"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{$response.statusCode}}",
+              "operation": "equal",
+              "value2": 200
+            }
+          ]
+        }
+      },
+      "name": "Check Execution Status",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        920,
+        300
+      ],
+      "id": "node-check-search-status"
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "http://backend:8000/api/v1/webhooks/n8n/alert",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={\n  \"level\": \"INFO\",\n  \"source\": \"n8n_scheduled_search\",\n  \"message\": \"Scheduled search initiated successfully\",\n  \"context\": {\n    \"job_id\": \"{{$json.body.job_id}}\"\n  }\n}",
+        "headerParametersJson": "={\n  \"Content-Type\": \"application/json\",\n  \"X-Webhook-Secret\": \"n8n_sales_crm_secure_webhook_secret_2026\"\n}"
+      },
+      "name": "Log Success Audit Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        1140,
+        220
+      ],
+      "id": "node-log-search-success"
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "http://backend:8000/api/v1/webhooks/n8n/alert",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={\n  \"level\": \"ERROR\",\n  \"source\": \"n8n_scheduled_search\",\n  \"message\": \"Scheduled search job dispatch failed\",\n  \"context\": {\n    \"error\": \"{{$json.error}}\"\n  }\n}",
+        "headerParametersJson": "={\n  \"Content-Type\": \"application/json\",\n  \"X-Webhook-Secret\": \"n8n_sales_crm_secure_webhook_secret_2026\"\n}"
+      },
+      "name": "Log Failure Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        1140,
+        380
+      ],
+      "id": "node-log-search-failure"
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (Weekly Monday 9AM)": {
+      "main": [
+        [
+          {
+            "node": "Set Search Query Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Search Query Config": {
+      "main": [
+        [
+          {
+            "node": "Trigger FastAPI Search Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger FastAPI Search Job": {
+      "main": [
+        [
+          {
+            "node": "Check Execution Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Execution Status": {
+      "main": [
+        [
+          {
+            "node": "Log Success Audit Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Failure Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
